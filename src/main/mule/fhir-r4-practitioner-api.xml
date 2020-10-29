@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:listener-config name="fhir-r4-practitioner-api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="fhir-r4-practitioner-api-config" api="resource::17473fef-b0b5-40f2-b1a0-72bee4bed13c:fhir-r4-practitioner-api:1.0.0:raml:zip:fhir-r4-practitioner-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <sub-flow name="xml_to_json" doc:id="47039a51-fd42-48e1-9795-eb7949834bdc" >
+		<ee:transform doc:name="Copy_of_convert XML to JSON" doc:id="0e1fd06d-6358-4f93-83b5-81df13088a3e">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+
+import * from dw::fhir::xmlToJson
+---
+fhirXMLToJson(payload, ["identifier", "line", "prefix", "name", "given", "address", "qualification", "coding"])]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<flow name="fhir-r4-practitioner-api-main">
+        <http:listener config-ref="fhir-r4-practitioner-api-httpListenerConfig" path="/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <flow-ref doc:name="fhir-set-common-variables" doc:id="6f85816d-afd7-4b21-96a2-30fb2b9e3adb" name="fhir-set-common-variables"/>
+		<apikit:router config-ref="fhir-r4-practitioner-api-config" />
+        <flow-ref doc:name="transform-output-to-accept-header" doc:id="3c7f50b4-9053-47d8-a0d0-6959c3027276" name="transform-output-to-accept-header"/>
+		<error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="fhir-r4-practitioner-api-console">
+        <http:listener config-ref="fhir-r4-practitioner-api-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="fhir-r4-practitioner-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="put:\Practitioner\(id):application\fhir+json:fhir-r4-practitioner-api-config">
+        <flow-ref doc:name="put\(Resource)\(id):application\fhir+json" doc:id="557af9da-7b17-465f-8078-a6af1f78b75e" name="put\(Resource)\(id):application\fhir+json"/>
+    </flow>
+    <flow name="put:\Practitioner\(id):application\fhir+xml:fhir-r4-practitioner-api-config">
+		<flow-ref doc:name="xml_to_json" doc:id="6e203ce0-adc9-4342-92b2-0698722f6f75" name="xml_to_json" />
+		<flow-ref doc:name="put:\Practitioner\(id):application\fhir+json:fhir-r4-practitioner-api-config" doc:id="63846966-7f43-4256-bc2f-b2de8cd48aed" name="put:\Practitioner\(id):application\fhir+json:fhir-r4-practitioner-api-config"/>
+    </flow>
+    <flow name="delete:\Practitioner\(id):fhir-r4-practitioner-api-config">
+        <flow-ref doc:name="delete\(Resource)\(id)" doc:id="0eee249b-0059-4d84-ad34-a3fc7052a59f" name="delete\(Resource)\(id)"/>
+    </flow>
+    <flow name="get:\Practitioner:fhir-r4-practitioner-api-config">
+		<flow-ref doc:name="get\(Resource)" doc:id="fdd6b9bb-6806-4023-9d04-8997f7c5e7ba" name="get\(Resource)"/>
+    </flow>
+    <flow name="get:\Practitioner\(id)\_history:fhir-r4-practitioner-api-config">
+		<flow-ref doc:name="get\(Resource)\(id)\_history" doc:id="6dbd404f-6b26-4ec4-8123-bfe17449217c" name="get\(Resource)\(id)\_history"/>
+    </flow>
+    <flow name="get:\Practitioner\(id):fhir-r4-practitioner-api-config">
+        <flow-ref doc:name="get\(Resource)\(id)" doc:id="70754df1-f70a-415f-99b0-a589a4c81594" name="get\(Resource)\(id)"/>
+    </flow>
+    <flow name="get:\Practitioner\(id)\_history\(vid):fhir-r4-practitioner-api-config">
+		<flow-ref doc:name="get\(Resource)\(id)\_history\(vid)" doc:id="09eaf4f1-9999-47af-976a-f67ca69b5403" name="get\(Resource)\(id)\_history\(vid)"/>
+    </flow>
+    <flow name="post:\Practitioner:application\fhir+json:fhir-r4-practitioner-api-config">
+		<flow-ref doc:name="post\(Resource):application\fhir+json" doc:id="8bad0a35-16de-4327-810e-8ef7a42a93c7" name="post\(Resource):application\fhir+json"/>
+    </flow>
+    <flow name="post:\Practitioner:application\fhir+xml:fhir-r4-practitioner-api-config">
+        <flow-ref doc:name="xml_to_json" doc:id="8650c6ad-0b51-415d-87a7-bb9a0861b84a" name="xml_to_json"/>
+		<flow-ref doc:name="post:\Practitioner:application\fhir+json:fhir-r4-practitioner-api-config" doc:id="87d92cf9-77aa-499c-b314-da56fd8822ef" name="post:\Practitioner:application\fhir+json:fhir-r4-practitioner-api-config"/>
+    </flow>
+</mule>
